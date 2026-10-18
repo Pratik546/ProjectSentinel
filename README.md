@@ -30,6 +30,8 @@ streamlit run app.py
 
 Enter a project directory in the sidebar, choose modules, and click **Scan Project**. The default exclusions include Git metadata, virtual environments, dependency folders, build output, caches, and Unity generated folders. Limits are configurable.
 
+ProjectSentinel does not require an API key or secret. If you want to preconfigure a local target, copy `.env.example` to `.env` and set `PROJECTSENTINEL_TARGET`; never commit real credentials.
+
 ## Quick live-project demo
 
 1. Run `streamlit run app.py`.
@@ -62,13 +64,15 @@ The dashboard keeps a real scan receipt: target folder, scan ID, recorded timest
 docker compose up --build
 ```
 
-Open <http://localhost:8501>. To inspect another project, set `PROJECTSENTINEL_TARGET` or use the read-only `./target:/target:ro` mount in `compose.yaml`. Docker build/run was not verified when Docker is unavailable; local tests remain the source of truth.
+Open <http://localhost:8501>. To inspect another project, set `PROJECTSENTINEL_TARGET` or use the read-only `./target:/target:ro` mount in `compose.yaml`. GitHub Actions builds the Docker image on Ubuntu for every push and pull request; local Docker verification is still required when Docker is unavailable on the development machine.
 
 ## Tests
 
 ```bash
 python -m pytest -q
 python -m compileall -q projectsentinel app.py
+# Or run both checks together:
+bash scripts/run_tests.sh
 ```
 
 Tests use temporary fixtures and no internet. The JSON report has schema version `1.0`, a summary, module status, portable findings, skipped-file reasons, errors, and limitations. HTML is escaped and intentionally states it is not a security certification.
