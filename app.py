@@ -84,11 +84,7 @@ def main() -> None:
         </style>""", unsafe_allow_html=True,
     )
 
-    demo_target = ROOT / "examples" / "sample_unity_project"
-    default_target = os.getenv("PROJECTSENTINEL_TARGET", str(demo_target if demo_target.is_dir() else ROOT))
-
-    def set_sample_target() -> None:
-        st.session_state["target_input"] = str(demo_target)
+    default_target = os.getenv("PROJECTSENTINEL_TARGET", "")
 
     st.markdown(
         """<div class="hero"><h1>🛡 ProjectSentinel</h1>
@@ -96,17 +92,15 @@ def main() -> None:
         <p class="step">1 Choose a project&nbsp;&nbsp; → &nbsp;&nbsp;2 Scan locally&nbsp;&nbsp; → &nbsp;&nbsp;3 Review evidence and export</p>
         </div>""", unsafe_allow_html=True,
     )
-    st.info("60-second demo: scan the preloaded sample, open **Findings & evidence**, then download the HTML report. Project files are read-only and never uploaded.")
+    st.info("To begin, enter a real project folder in the sidebar, click **Scan Project**, open **Findings & evidence**, and export the report. Project files are read-only and never uploaded.")
 
     if "target_input" not in st.session_state:
         st.session_state.target_input = default_target
 
-    sample_run = False
     with st.sidebar:
         st.header("1 · Choose a project")
         target = st.text_input("Project folder (read-only)", key="target_input", help="Use the project root when possible. For Unity, choose the folder containing Assets, Packages, and ProjectSettings.")
-        st.button("Use sample project", on_click=set_sample_target, use_container_width=True)
-        st.caption("For the demo: examples/sample_unity_project")
+        st.caption("Choose the project root when possible. For Unity, use the folder containing Assets, Packages, and ProjectSettings.")
 
         st.header("2 · Choose checks")
         modules = st.multiselect(
@@ -124,14 +118,11 @@ def main() -> None:
         run = st.button("Scan Project", type="primary", use_container_width=True)
         st.caption("Privacy: local-only, read-only, no API key required.")
 
-    if not st.session_state.get("result"):
-        sample_run = st.button("Run sample scan now", on_click=set_sample_target, type="primary", use_container_width=True)
-        if sample_run:
-            target = st.session_state["target_input"]
-            run = True
     if run:
         target_path = Path(target).expanduser()
-        if not target_path.is_dir():
+        if not target.strip():
+            st.error("Enter a project folder before scanning.")
+        elif not target_path.is_dir():
             st.error("Project folder must be an existing directory.")
         elif not modules:
             st.error("Choose at least one module.")
@@ -165,7 +156,7 @@ def main() -> None:
     if not result:
         st.subheader("Start here")
         st.write("ProjectSentinel is a deterministic release-readiness tool, not a chatbot. It finds evidence-backed issues and tells you what to verify next.")
-        st.markdown("**Try the demo:** choose the sample project in the sidebar and click **Scan Project**.")
+        st.markdown("**Try it:** enter a real project folder in the sidebar and click **Scan Project**.")
         return
 
     scanned_target = st.session_state.get("scanned_target", str(result.root))

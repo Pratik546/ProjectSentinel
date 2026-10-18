@@ -1,5 +1,0 @@
-[
-  {"severity": "high", "title": "Dependency has known vulnerability", "path": "requirements.txt", "message": "Update the affected dependency.", "status": "open"},
-  {"severity": "medium", "title": "Missing repository policy", "path": ".github/", "message": "Add a documented review policy.", "status": "open"},
-  {"severity": "low", "title": "Secret scanning is not configured", "path": ".github/workflows/", "message": "Enable secret scanning in CI.", "status": "open"}
-]

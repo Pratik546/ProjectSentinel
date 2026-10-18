@@ -4,7 +4,7 @@ ProjectSentinel is an offline-first release-readiness auditor for Unity, Unreal 
 
 > **Buildathon pitch:** Point ProjectSentinel at a game or app project. It scans locally, finds evidence-backed release risks across code, assets, logs, security, mobile configuration, model artifacts, and requirements, then produces an explainable release gate and a shareable report. It never executes project code, modifies the project, or uploads source files.
 
-**Demo outcome:** In under two minutes, judges can run the included sample, see a `REVIEW` release decision, open the exact evidence behind a finding, and download the HTML report. The tool is designed to make uncertainty visible rather than pretending that static analysis proves runtime safety.
+**Demo outcome:** In under two minutes, judges can scan a real project, see a `REVIEW`/`BLOCKED`/`VERIFY` release decision, open the exact evidence behind a finding, and download the HTML report. The tool is designed to make uncertainty visible rather than pretending that static analysis proves runtime safety.
 
 ## Features
 
@@ -30,31 +30,31 @@ streamlit run app.py
 
 Enter a project directory in the sidebar, choose modules, and click **Scan Project**. The default exclusions include Git metadata, virtual environments, dependency folders, build output, caches, and Unity generated folders. Limits are configurable.
 
-## 60-second judge demo
+## Quick live-project demo
 
 1. Run `streamlit run app.py`.
-2. Keep the preloaded `examples/sample_unity_project` target or click **Use sample project**.
+2. Enter the folder of a real game, app, repository, or asset project.
 3. Click **Scan Project**.
-4. Open **Findings & evidence** and inspect the duplicate asset, malformed manifest, repeated log error, redacted placeholder credential, and unverified requirement.
+4. Open **Findings & evidence** and inspect the file-level evidence and remediation.
 5. Open **Export report** and download the reviewable HTML report.
 
-The product story is simple: choose a project, scan locally, review evidence, and export a report. Nothing is executed, modified, or uploaded.
+For a terminal scan and report export:
+
+```bash
+bash scripts/demo_scan.sh /path/to/project
+# Optional requirements evidence:
+bash scripts/demo_scan.sh /path/to/project /path/to/requirements.json
+```
+
+Reports are written to `reports/`, which is ignored by Git. The repository intentionally does not include a bundled sample project; use your own project or temporary test fixtures.
 
 ## Why this is useful
 
 Small teams often have assets, source code, logs, credentials, mobile configuration, and release requirements spread across one project. ProjectSentinel turns that scattered pre-release work into one explainable release gate: it shows what was checked, what failed, the file-level evidence, and the next action. It is intentionally honest about uncertainty instead of claiming that a static scan proves a game or app is safe.
 
-For a buildathon presentation, demonstrate the before/after loop: start with the sample project, show the release gate and top actions, open one finding to prove its evidence and remediation, then export the HTML report. A winning result cannot be guaranteed, but this flow makes user value and technical proof visible in under two minutes.
+For a buildathon presentation, demonstrate the loop on a small project: show the release gate and top actions, open one finding to prove its evidence and remediation, then export the HTML report. A winning result cannot be guaranteed, but this flow makes user value and technical proof visible in under two minutes.
 
 The dashboard keeps a real scan receipt: target folder, scan ID, recorded timestamp, enabled modules, files inspected, skipped files, duration, module status, and errors. If you change scan controls after a scan, the result is marked **STALE** and report downloads are disabled until you scan again.
-
-## Demo
-
-```bash
-bash scripts/demo_scan.sh
-```
-
-The synthetic fixture under `examples/sample_unity_project` contains duplicate text assets, a malformed package manifest, an unresolved-looking GUID, a repeated log error, a nonfunctional placeholder credential, and unverified requirements. It is safe and contains no real credentials.
 
 ## Docker
 
