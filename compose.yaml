@@ -1,0 +1,9 @@
+services:
+  projectsentinel:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      PROJECTSENTINEL_TARGET: /workspace
+    volumes:
+      - .:/workspace:ro

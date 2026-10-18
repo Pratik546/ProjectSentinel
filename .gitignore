@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.streamlit/secrets.toml
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+demo-report.*
+reports/
+*.log
+.opencode/
