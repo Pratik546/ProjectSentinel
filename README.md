@@ -2,6 +2,10 @@
 
 ProjectSentinel is an offline-first release-readiness auditor for Unity, Unreal Engine, Blender, Maya, and general software repositories. It answers **“what should I fix before release?”** with deterministic evidence rather than a chatbot or a cloud service.
 
+> **Buildathon pitch:** Point ProjectSentinel at a game or app project. It scans locally, finds evidence-backed release risks across code, assets, logs, security, mobile configuration, model artifacts, and requirements, then produces an explainable release gate and a shareable report. It never executes project code, modifies the project, or uploads source files.
+
+**Demo outcome:** In under two minutes, judges can run the included sample, see a `REVIEW` release decision, open the exact evidence behind a finding, and download the HTML report. The tool is designed to make uncertainty visible rather than pretending that static analysis proves runtime safety.
+
 ## Features
 
 - **SceneSentry**: bounded inventory, duplicate-byte detection, Unity manifest/GUID checks, Unreal descriptor checks, Maya ASCII validation, Blender/Maya/Unreal asset inventory, and large-file/texture heuristics.
