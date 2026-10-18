@@ -37,7 +37,7 @@ def analyze(files: list[FileRecord]) -> list[Finding]:
         if not f.text: continue
         suffix=Path(f.path).suffix.lower(); language=LANGUAGE_EXTENSIONS.get(suffix)
         if not language: continue
-        if "<<<<<<< " in f.text or "=======\n" in f.text or ">>>>>>> " in f.text:
+        if re.search(r"(?m)^(?:<<<<<<<\s+|>>>>>>>\s+|=======\s*$)", f.text):
             out.append(finding("CODE-MERGE-CONFLICT", "Unresolved merge conflict marker", Severity.HIGH, f.path, f"A merge-conflict marker was found in {language} source.", module="SceneSentry", confidence=Confidence.HIGH, remediation="Resolve the conflict and run the language's normal build or test command."))
         if language == "Python":
             try: ast.parse(f.text, filename=f.path)
