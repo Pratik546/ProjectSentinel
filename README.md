@@ -36,6 +36,12 @@ Enter a project directory in the sidebar, choose modules, and click **Scan Proje
 
 The product story is simple: choose a project, scan locally, review evidence, and export a report. Nothing is executed, modified, or uploaded.
 
+## Why this is useful
+
+Small teams often have assets, source code, logs, credentials, mobile configuration, and release requirements spread across one project. ProjectSentinel turns that scattered pre-release work into one explainable release gate: it shows what was checked, what failed, the file-level evidence, and the next action. It is intentionally honest about uncertainty instead of claiming that a static scan proves a game or app is safe.
+
+For a buildathon presentation, demonstrate the before/after loop: start with the sample project, show the release gate and top actions, open one finding to prove its evidence and remediation, then export the HTML report. A winning result cannot be guaranteed, but this flow makes user value and technical proof visible in under two minutes.
+
 ## Demo
 
 ```bash

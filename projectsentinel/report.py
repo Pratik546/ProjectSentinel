@@ -2,11 +2,11 @@
 import html, json
 from .models import ScanResult
 from .security import redact
-from .scoring import severity_counts
+from .scoring import release_gate, severity_counts
 
 def to_dict(result: ScanResult) -> dict:
     return {"schema_version":"1.0", "project_name": result.root.name, "scan_timestamp": result.started_at,
-            "enabled_modules": result.module_status, "summary":{"files_inspected":len(result.files),"files_skipped":len(result.skipped),"duration_seconds":result.duration_seconds,"risk_score":result.score,"severity_counts":severity_counts(result.findings)},
+            "enabled_modules": result.module_status, "summary":{"files_inspected":len(result.files),"files_skipped":len(result.skipped),"duration_seconds":result.duration_seconds,"risk_score":result.score,"severity_counts":severity_counts(result.findings),"release_gate":release_gate(result)},
             "findings":[{**f.to_dict(),"message":redact(f.message),"evidence":redact(f.evidence or "")} for f in result.findings], "errors":[redact(e) for e in result.errors], "skipped":result.skipped,
             "limitations":["This is an automated audit, not a security certification.","Local dependency parsing does not query vulnerability advisories.","Heuristics and missing evidence require human review."]}
 

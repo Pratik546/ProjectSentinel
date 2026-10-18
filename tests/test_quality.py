@@ -3,6 +3,7 @@ from projectsentinel.models import Finding, Severity
 from projectsentinel.report import html_report, to_dict
 from projectsentinel.scanner import analyze_project, scan_project
 from projectsentinel.security import redact
+from projectsentinel.scoring import release_gate
 
 def test_symlink_is_skipped_and_malformed_manifest_is_recoverable(tmp_path: Path):
     (tmp_path / "Packages").mkdir(); (tmp_path / "Assets").mkdir()
@@ -70,3 +71,9 @@ def test_language_mobile_and_model_checks(tmp_path: Path):
     assert any(f.rule_id == "MOBILE-ANDROID-MANIFEST" for f in result.findings)
     assert any(f.rule_id == "MODEL-INVENTORY" for f in result.findings)
     assert "Android" in result.findings[-1].metadata.get("platforms", []) or any(f.metadata.get("platforms") for f in result.findings)
+
+def test_release_gate_explains_blockers_and_incomplete_checks(tmp_path: Path):
+    result = analyze_project(tmp_path, enabled={"SceneSentry"})
+    gate = release_gate(result)
+    assert gate["status"] == "REVIEW"
+    assert "not-run checks" in " ".join(gate["reasons"])

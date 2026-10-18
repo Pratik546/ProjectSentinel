@@ -55,6 +55,7 @@ def main() -> None:
 
     from projectsentinel.models import Severity
     from projectsentinel.report import html_report, json_report
+    from projectsentinel.scoring import release_gate
     from projectsentinel.scanner import analyze_project
 
     st.set_page_config(page_title="ProjectSentinel", page_icon="🛡", layout="wide")
@@ -135,6 +136,7 @@ def main() -> None:
     scanned_target = st.session_state.get("scanned_target", str(result.root))
     counts = {severity.name.title(): sum(f.severity == severity for f in result.findings) for severity in Severity}
     high_priority = [f for f in result.findings if f.severity >= Severity.HIGH]
+    gate = release_gate(result)
     st.caption(f"Scanned target: `{scanned_target}`")
     st.subheader("Release snapshot")
     if result.errors:
@@ -148,6 +150,17 @@ def main() -> None:
         column.metric(label, counts[label])
     st.caption(f"Inspected {len(result.files)} files · skipped {len(result.skipped)} · {result.duration_seconds:.2f}s · detected: {', '.join(result.project_types)}")
 
+    st.subheader("Release gate")
+    gate_columns = st.columns(3)
+    gate_columns[0].metric("Decision", gate["status"])
+    gate_columns[1].metric("High/Critical", gate["confirmed_high_or_critical"])
+    gate_columns[2].metric("Unverified requirements", gate["unverified_requirements"])
+    if gate["status"] == "BLOCKED":
+        st.error(f"{gate['label']}: " + ("; ".join(gate["reasons"]) or "a check failed."))
+    elif gate["status"] == "REVIEW":
+        st.warning(f"{gate['label']}: " + ("; ".join(gate["reasons"]) or "manual review remains."))
+    else:
+        st.success(f"{gate['label']}. This is an automated signal, not a safety certification.")
     st.subheader("Top actions before release")
     for finding in high_priority[:5]:
         location = f"{finding.path}:{finding.line}" if finding.line else finding.path or "project"
@@ -160,7 +173,7 @@ def main() -> None:
     with tabs[0]:
         st.subheader("Module status")
         st.table([{"Module": name, "What it checks": MODULE_HELP[name], "Status": result.module_status.get(name, "not run")} for name in MODULES])
-        st.info(f"Heuristic risk signal: {result.score}/100. This prioritizes severity and confidence; it is not a pass/fail certification or a guarantee of safety.")
+        st.info(f"Heuristic risk signal: {result.score}/100. The release gate uses severity, confidence, module completeness, and requirement evidence; neither is a pass/fail certification or a guarantee of safety.")
         if result.skipped:
             st.write("Skipped-file reasons")
             st.dataframe(result.skipped, hide_index=True, use_container_width=True)
