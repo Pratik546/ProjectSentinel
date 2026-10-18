@@ -1,2 +1,0 @@
-streamlit==1.39.0
-pytest==8.3.3
