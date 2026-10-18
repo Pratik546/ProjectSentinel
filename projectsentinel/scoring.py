@@ -19,15 +19,17 @@ def release_gate(result: ScanResult) -> dict[str, object]:
     failed = [name for name, status in result.module_status.items() if status in {"failed", "partial"}]
     not_run = [name for name, status in result.module_status.items() if status == "not run"]
     unverified = sum(f.rule_id == "SCOPE-UNVERIFIED" for f in result.findings)
+    skipped = len(result.skipped)
     reasons: list[str] = []
     if counts["critical"]: reasons.append(f"{counts['critical']} critical finding(s)")
     if counts["high"]: reasons.append(f"{counts['high']} high-priority finding(s)")
     if unverified: reasons.append(f"{unverified} requirement(s) lack verification evidence")
+    if skipped: reasons.append(f"{skipped} file(s) were skipped by scan limits or safety rules")
     if failed: reasons.append("failed checks: " + ", ".join(failed))
     if not_run: reasons.append("not-run checks: " + ", ".join(not_run))
     if failed or counts["critical"]:
         status, label = "BLOCKED", "Do not release yet"
-    elif counts["high"] or unverified or not_run:
+    elif counts["high"] or unverified or not_run or skipped:
         status, label = "REVIEW", "Review before release"
     else:
         status, label = "VERIFY", "No blockers detected by enabled checks"

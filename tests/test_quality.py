@@ -77,3 +77,10 @@ def test_release_gate_explains_blockers_and_incomplete_checks(tmp_path: Path):
     gate = release_gate(result)
     assert gate["status"] == "REVIEW"
     assert "not-run checks" in " ".join(gate["reasons"])
+
+def test_release_gate_treats_skipped_files_as_incomplete(tmp_path: Path):
+    result = analyze_project(tmp_path)
+    result.skipped.append({"path": "large.bin", "reason": "per-file size limit"})
+    gate = release_gate(result)
+    assert gate["status"] == "REVIEW"
+    assert "skipped" in " ".join(gate["reasons"])

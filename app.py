@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
+import json
 from pathlib import Path
 import os
 import sys
@@ -47,6 +49,20 @@ def _requirements_summary(raw: str) -> tuple[int, int, int, str | None]:
         return 0, 0, 0, str(exc)
 
 
+def _scan_fingerprint(target: str, modules: list[str], max_bytes: int, max_files: int, large_file_mb: int, ignores: set[str], requirements: str) -> str:
+    """Identify the exact inputs represented by the visible scan receipt."""
+    payload = {
+        "target": str(Path(target).expanduser().resolve()),
+        "modules": sorted(modules),
+        "max_bytes": int(max_bytes),
+        "max_files": int(max_files),
+        "large_file_mb": int(large_file_mb),
+        "ignores": sorted(ignores),
+        "requirements": requirements,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
 def main() -> None:
     try:
         import streamlit as st
@@ -71,6 +87,9 @@ def main() -> None:
     demo_target = ROOT / "examples" / "sample_unity_project"
     default_target = os.getenv("PROJECTSENTINEL_TARGET", str(demo_target if demo_target.is_dir() else ROOT))
 
+    def set_sample_target() -> None:
+        st.session_state["target_input"] = str(demo_target)
+
     st.markdown(
         """<div class="hero"><h1>🛡 ProjectSentinel</h1>
         <p><b>Find what to fix before release.</b> Scan a project locally, inspect file-level evidence, and export a reviewable report.</p>
@@ -79,12 +98,14 @@ def main() -> None:
     )
     st.info("60-second demo: scan the preloaded sample, open **Findings & evidence**, then download the HTML report. Project files are read-only and never uploaded.")
 
+    if "target_input" not in st.session_state:
+        st.session_state.target_input = default_target
+
+    sample_run = False
     with st.sidebar:
         st.header("1 · Choose a project")
-        target = st.text_input("Project folder (read-only)", default_target, help="Use the project root when possible. For Unity, choose the folder containing Assets, Packages, and ProjectSettings.")
-        if st.button("Use sample project", use_container_width=True):
-            st.session_state.target_input = str(demo_target)
-            st.rerun()
+        target = st.text_input("Project folder (read-only)", key="target_input", help="Use the project root when possible. For Unity, choose the folder containing Assets, Packages, and ProjectSettings.")
+        st.button("Use sample project", on_click=set_sample_target, use_container_width=True)
         st.caption("For the demo: examples/sample_unity_project")
 
         st.header("2 · Choose checks")
@@ -103,8 +124,11 @@ def main() -> None:
         run = st.button("Scan Project", type="primary", use_container_width=True)
         st.caption("Privacy: local-only, read-only, no API key required.")
 
-    if "target_input" in st.session_state:
-        target = st.session_state.target_input
+    if not st.session_state.get("result"):
+        sample_run = st.button("Run sample scan now", on_click=set_sample_target, type="primary", use_container_width=True)
+        if sample_run:
+            target = st.session_state["target_input"]
+            run = True
     if run:
         target_path = Path(target).expanduser()
         if not target_path.is_dir():
@@ -114,6 +138,7 @@ def main() -> None:
         else:
             with st.spinner("Scanning safely — source code is never executed or modified..."):
                 ignores = {item.strip() for item in extra_ignores.split(",") if item.strip()}
+                fingerprint = _scan_fingerprint(str(target_path), modules, int(max_bytes), int(max_files), int(large_file_mb), ignores, req)
                 st.session_state.result = analyze_project(
                     target_path,
                     max_bytes=int(max_bytes) * 1024 * 1024,
@@ -125,6 +150,16 @@ def main() -> None:
                 )
                 st.session_state.scanned_target = str(target_path.resolve())
                 st.session_state.requirements_raw = req
+                st.session_state.scan_fingerprint = fingerprint
+                st.session_state.scan_config = {
+                    "modules": list(modules),
+                    "max_file_size_mb": int(max_bytes),
+                    "max_files": int(max_files),
+                    "large_file_threshold_mb": int(large_file_mb),
+                    "additional_ignores": sorted(ignores),
+                    "requirements_supplied": bool(req.strip()),
+                }
+                st.session_state.result.metadata["scan_id"] = hashlib.sha256(f"{fingerprint}|{st.session_state.result.started_at}".encode("utf-8")).hexdigest()[:12]
 
     result = st.session_state.get("result")
     if not result:
@@ -134,10 +169,23 @@ def main() -> None:
         return
 
     scanned_target = st.session_state.get("scanned_target", str(result.root))
+    current_ignores = {item.strip() for item in extra_ignores.split(",") if item.strip()}
+    current_fingerprint = _scan_fingerprint(target, modules, int(max_bytes), int(max_files), int(large_file_mb), current_ignores, req)
+    stale = bool(st.session_state.get("scan_fingerprint") and current_fingerprint != st.session_state.get("scan_fingerprint"))
+    if stale:
+        st.warning("The controls no longer match the displayed result. Click **Scan Project** to refresh this report; exports remain disabled until then.")
     counts = {severity.name.title(): sum(f.severity == severity for f in result.findings) for severity in Severity}
     high_priority = [f for f in result.findings if f.severity >= Severity.HIGH]
     gate = release_gate(result)
     st.caption(f"Scanned target: `{scanned_target}`")
+    receipt = st.container(border=True)
+    with receipt:
+        receipt_columns = st.columns(4)
+        receipt_columns[0].metric("Scan status", "STALE" if stale else "COMPLETE")
+        receipt_columns[1].metric("Scan ID", result.metadata.get("scan_id", "—"))
+        receipt_columns[2].metric("Files / skipped", f"{len(result.files)} / {len(result.skipped)}")
+        receipt_columns[3].metric("Duration", f"{result.duration_seconds:.2f}s")
+        st.caption(f"Recorded at: {result.started_at or 'not available'} · enabled modules: {', '.join(result.module_status)}")
     st.subheader("Release snapshot")
     if result.errors:
         st.warning(f"Review required: {len(result.errors)} module or file error(s) occurred. Incomplete checks are shown below.")
@@ -172,7 +220,7 @@ def main() -> None:
     tabs = st.tabs(["Summary", "Findings & evidence", "Assets", "Crash logs", "Security & privacy", "Requirements", "Export report"])
     with tabs[0]:
         st.subheader("Module status")
-        st.table([{"Module": name, "What it checks": MODULE_HELP[name], "Status": result.module_status.get(name, "not run")} for name in MODULES])
+        st.table([{"Module": name, "What it checks": MODULE_HELP[name], "Status": (f"Ran · {sum(f.module == name for f in result.findings)} findings" if result.module_status.get(name) == "completed" else result.module_status.get(name, "not run"))} for name in MODULES])
         st.info(f"Heuristic risk signal: {result.score}/100. The release gate uses severity, confidence, module completeness, and requirement evidence; neither is a pass/fail certification or a guarantee of safety.")
         if result.skipped:
             st.write("Skipped-file reasons")
@@ -244,8 +292,8 @@ def main() -> None:
 
     with tabs[6]:
         st.write("Export the evidence so a teammate or judge can review the same scan outside the app.")
-        st.download_button("Download evidence JSON", json_report(result), "projectsentinel-report.json", "application/json")
-        st.download_button("Download reviewable HTML report", html_report(result), "projectsentinel-report.html", "text/html")
+        st.download_button("Download evidence JSON", json_report(result), "projectsentinel-report.json", "application/json", disabled=stale)
+        st.download_button("Download reviewable HTML report", html_report(result), "projectsentinel-report.html", "text/html", disabled=stale)
         st.caption("Reports use portable relative paths, redact detected secrets, and state that this is an automated audit rather than a security certification.")
 
 

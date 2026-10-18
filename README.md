@@ -46,6 +46,8 @@ Small teams often have assets, source code, logs, credentials, mobile configurat
 
 For a buildathon presentation, demonstrate the before/after loop: start with the sample project, show the release gate and top actions, open one finding to prove its evidence and remediation, then export the HTML report. A winning result cannot be guaranteed, but this flow makes user value and technical proof visible in under two minutes.
 
+The dashboard keeps a real scan receipt: target folder, scan ID, recorded timestamp, enabled modules, files inspected, skipped files, duration, module status, and errors. If you change scan controls after a scan, the result is marked **STALE** and report downloads are disabled until you scan again.
+
 ## Demo
 
 ```bash
