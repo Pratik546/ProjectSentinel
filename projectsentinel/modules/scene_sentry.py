@@ -6,6 +6,8 @@ from ._util import finding
 from .code_audit import analyze as analyze_code
 from .mobile_audit import analyze as analyze_mobile
 from .model_audit import analyze as analyze_model
+from ..adapters.assets import validate_engine_assets
+from ..adapters.build import validate_build_evidence
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".tga"}
 
@@ -28,6 +30,8 @@ def analyze(files: list[FileRecord], *, large_file_bytes: int = 25 * 1024 * 1024
     out.extend(analyze_code(files))
     out.extend(analyze_mobile(files))
     out.extend(analyze_model(files))
+    out.extend(validate_engine_assets(files))
+    out.extend(validate_build_evidence(files).findings)
     paths = {f.path for f in files}
     types = []
     if "Packages/manifest.json" in paths or any(p.startswith("ProjectSettings/") for p in paths) or any(p.endswith(".unity") for p in paths): types.append("Unity")

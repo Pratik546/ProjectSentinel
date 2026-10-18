@@ -13,9 +13,12 @@ ProjectSentinel is an offline-first release-readiness auditor for Unity, Unreal 
 - **TrustTrail**: conservative redacted credential detection, `.env` checks, dependency pinning checks, and explicit advisory-database limitations.
 - **ScopeGuard**: requirements JSON validation, unverified requirement findings, and release evidence checks.
 - **Cross-platform code and mobile checks**: source inventory across common languages, Python syntax parsing, merge-conflict detection, Android/iOS/Flutter/React Native project discovery, manifest/plist/debug configuration checks, and ML artifact inventory for ONNX, TensorFlow Lite, Core ML, PyTorch, Safetensors, and related formats.
+- **Opt-in command checks**: read-only adapter discovery proposes bounded argv checks for C#, C++, JavaScript, TypeScript, Java, Kotlin, Rust, Swift, and Dart. Execution is disabled by default, uses an executable allowlist, never invokes a shell, blocks install actions, and reports skipped/blocked/timeout/output-limit states.
+- **Verification plans**: every finding can produce manual and automated follow-up steps with explicit pass criteria. Proposed checks are never reported as passed until an external receipt exists.
+- **Optional adapters**: bounded crash-log imports; Android/iOS manifest and permission checks; Unity/Unreal build-log evidence; Unity/Unreal asset validation; local exact-version dependency advisory matching; and structural ONNX, TensorFlow Lite, PyTorch, and related model checks.
 - Shared typed findings, severity/confidence, deterministic IDs, safe relative paths, deduplication, escaped HTML and JSON exports.
 
-No code is executed, dependencies are never installed, the scanned project is never modified, symlinks are skipped, and no network service is required. Source files are inventoried across common Python, C#, C/C++, JavaScript/TypeScript, Java, Go, Rust, Lua, Ruby, PHP, shader, MEL, and related extensions; static checks remain conservative and do not claim to prove runtime correctness.
+Normal scans never execute code, install dependencies, modify the scanned project, or require a network service; symlinks are skipped. The separate command-check subsystem remains disabled unless a caller explicitly enables its allowlisted argv request, and it still blocks install actions and shell execution. Source files are inventoried across common Python, C#, C/C++, JavaScript/TypeScript, Java, Go, Rust, Lua, Ruby, PHP, shader, MEL, and related extensions; static checks remain conservative and do not claim to prove runtime correctness.
 
 ## Quick start
 
@@ -50,6 +53,21 @@ bash scripts/demo_scan.sh /path/to/project /path/to/requirements.json
 
 Reports are written to `reports/`, which is ignored by Git. The repository intentionally does not include a bundled sample project; use your own project or temporary test fixtures.
 
+## Crash-log workflow
+
+1. Open the sidebar's **Import crash logs** control and choose the `.log`, `.trace`, `.crash`, `.ips`, or named crash-text files exported from the real device or engine.
+2. Click **Import selected crash logs**. CrashLens reads the bounded files in memory and adds redacted, relative-path findings to the current scan.
+3. Open **Crash logs** to review the detected format, signature, line, and occurrence count. Documentation and source files are not treated as crash logs.
+4. Click **Download CrashLens evidence JSON** to save the redacted findings, file hashes, and imported-log receipt. Raw log bodies are intentionally not embedded; keep the original logs separately when a release reviewer needs them.
+
+ProjectSentinel does not download logs from a phone, engine, or cloud service. Export the log using the platform's normal developer tooling first, then import that local file. The evidence download is a review receipt, not a replacement for the original diagnostic artifact.
+
+## Optional verification adapters
+
+Normal scans are read-only and never run project commands. If a developer explicitly enables verification execution in the UI or calls the runner API, ProjectSentinel accepts only adapter-provided argv commands, checks an executable allowlist, uses `shell=False`, applies timeout/output bounds, blocks install/mutation actions, and records a redacted receipt. This is not an OS sandbox; explicitly enabled tools may still write files or access the network according to their own behavior.
+
+Optional local dependency intelligence can be supplied through the adapter API with an exact package/version database. Without that database, ProjectSentinel reports that vulnerability intelligence was not checked; it does not infer vulnerabilities from package names.
+
 ## Why this is useful
 
 Small teams often have assets, source code, logs, credentials, mobile configuration, and release requirements spread across one project. ProjectSentinel turns that scattered pre-release work into one explainable release gate: it shows what was checked, what failed, the file-level evidence, and the next action. It is intentionally honest about uncertainty instead of claiming that a static scan proves a game or app is safe.
@@ -64,7 +82,7 @@ The dashboard keeps a real scan receipt: target folder, scan ID, recorded timest
 docker compose up --build
 ```
 
-Open <http://localhost:8501>. To inspect another project, set `PROJECTSENTINEL_TARGET` or use the read-only `./target:/target:ro` mount in `compose.yaml`. GitHub Actions builds the Docker image on Ubuntu for every push and pull request; local Docker verification is still required when Docker is unavailable on the development machine.
+Open <http://localhost:8501>. The supplied Compose file mounts the current directory read-only at `/workspace`. To inspect another project, change the mount source and set `PROJECTSENTINEL_TARGET` to its container path. Verify the container with `docker compose up --build`; a successful image build alone does not verify that the running container is healthy. The repository currently has no GitHub Actions workflow, so local test results should not be confused with a new CI run.
 
 ## Tests
 
@@ -75,15 +93,15 @@ python -m compileall -q projectsentinel app.py
 bash scripts/run_tests.sh
 ```
 
-Tests use temporary fixtures and no internet. The JSON report has schema version `1.0`, a summary, module status, portable findings, skipped-file reasons, errors, and limitations. HTML is escaped and intentionally states it is not a security certification.
+Tests use temporary fixtures and no internet. The JSON report has schema version `1.1`, a summary, module status, portable findings, verification plans, adapter status, imported crash-log receipts, skipped-file reasons, errors, and limitations. HTML is escaped and intentionally states it is not a security certification.
 
 ## Architecture
 
-`projectsentinel/scanner.py` performs safe discovery and invokes analyzers. `models.py` defines the shared `Finding` and `ScanResult` contracts. Modules are in `projectsentinel/modules/`; parsers and security helpers are deliberately standard-library based. Add a module by implementing `analyze(files, **kwargs) -> list[Finding]`, registering it in `analyze_project`, and adding fixture-backed tests.
+`projectsentinel/scanner.py` performs safe discovery and invokes analyzers. `models.py` defines the shared `Finding` and `ScanResult` contracts. Modules are in `projectsentinel/modules/`; parsers and security helpers are deliberately standard-library based. `projectsentinel/command_runner.py` owns the disabled-by-default execution boundary, while `projectsentinel/language_adapters_impl.py` discovers language evidence and proposes commands without running them. Add a module by implementing `analyze(files, **kwargs) -> list[Finding]`, registering it in `analyze_project`, and adding fixture-backed tests.
 
 ## Scope and limitations
 
-This is evidence gathering, not proof of correctness, runtime performance, exploitability, or release safety. Python syntax is parsed locally; for other languages ProjectSentinel inventories source and performs conservative evidence checks, but does not replace the language compiler, type checker, linter, or test suite. Texture GPU memory/FPS, actual Unity/Unreal/Blender/Maya/mobile execution, deep proprietary binary internals, ML model accuracy/latency/safety, dependency vulnerability intelligence, Git history, and manual requirements are not claimed. Secret matches are conservative and can be false positives; all values are redacted. Review every finding before deleting or changing an asset.
+This is evidence gathering, not proof of correctness, runtime performance, exploitability, or release safety. Python syntax is parsed locally; for other languages ProjectSentinel inventories source and proposes opt-in toolchain checks, but does not replace the language compiler, type checker, linter, or test suite. Texture GPU memory/FPS, actual Unity/Unreal/Blender/Maya/mobile execution, deep proprietary binary internals, ML model accuracy/latency/safety, dependency vulnerability intelligence without a supplied local database, Git history, and manual requirements are not claimed. Secret matches are conservative and can be false positives; all values are redacted. Review every finding before deleting or changing an asset.
 
 ## Privacy and security
 

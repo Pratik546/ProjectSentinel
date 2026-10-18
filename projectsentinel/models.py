@@ -17,6 +17,9 @@ class FileRecord:
     sha256: str
     text: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Binary evidence is retained only for bounded, non-text artifacts that
+    # have a validator.  It is intentionally not included in reports.
+    data: bytes | None = None
 
 @dataclass(frozen=True)
 class Finding:

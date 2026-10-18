@@ -24,7 +24,7 @@ def test_html_escapes_finding_content(tmp_path: Path):
 
 def test_json_has_portable_schema_and_clean_scan(tmp_path: Path):
     data = to_dict(scan_project(tmp_path))
-    assert data["schema_version"] == "1.0"
+    assert data["schema_version"] == "1.1"
     assert data["summary"]["files_inspected"] == 0
     assert data["findings"] == []
 

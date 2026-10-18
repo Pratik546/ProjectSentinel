@@ -25,6 +25,7 @@ def _image_dimensions(data: bytes, suffix: str) -> tuple[int, int] | None:
     return None
 
 DEFAULT_IGNORES = {".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", "Library", "Temp", "obj", "Build", "build", "dist", ".idea"}
+RETAIN_BINARY = {".onnx", ".tflite", ".pt", ".pth", ".uasset", ".umap", ".blend", ".fbx", ".glb", ".gltf", ".mlmodel", ".safetensors", ".pkl", ".joblib"}
 
 def _detect_project_types(files: list[FileRecord]) -> list[str]:
     paths = {f.path for f in files}
@@ -72,14 +73,20 @@ def scan_project(root: str | Path, *, max_bytes: int = 2_000_000, max_files: int
             dimensions = _image_dimensions(data, path.suffix)
             if dimensions:
                 metadata["width"], metadata["height"] = dimensions
-            result.files.append(FileRecord(rel, len(data), sha256_bytes(data), text, metadata))
+            # Text is already retained for text analyzers. Binary payloads are
+            # retained only for bounded formats with structural adapters so a
+            # validator can inspect bytes without reopening or executing them.
+            raw = data if (text is None or path.suffix.lower() in RETAIN_BINARY) else None
+            result.files.append(FileRecord(rel, len(data), sha256_bytes(data), text, metadata, raw))
         except (OSError, ValueError, UnicodeError) as exc:
             result.errors.append(f"{safe_relative(path, base)}: {exc}")
     return result
 
-def analyze_project(root: str | Path, *, max_bytes: int = 2_000_000, max_files: int = 25_000, ignores: set[str] | None = None, enabled: set[str] | None = None, requirements: str | Path | None = None, large_file_bytes: int = 25 * 1024 * 1024) -> ScanResult:
+def analyze_project(root: str | Path, *, max_bytes: int = 2_000_000, max_files: int = 25_000, ignores: set[str] | None = None, enabled: set[str] | None = None, requirements: str | Path | None = None, large_file_bytes: int = 25 * 1024 * 1024, vulnerability_database=None, dependency_database=None) -> ScanResult:
     """Scan a project and run all built-in, read-only analyzers."""
     started = monotonic()
+    if vulnerability_database is None:
+        vulnerability_database = dependency_database
     result = scan_project(root, max_bytes=max_bytes, max_files=max_files, ignores=ignores)
     result.started_at = datetime.now(timezone.utc).isoformat()
     result.metadata["project_types"] = _detect_project_types(result.files)
@@ -95,6 +102,8 @@ def analyze_project(root: str | Path, *, max_bytes: int = 2_000_000, max_files: 
             continue
         try:
             kwargs = {"requirements": requirements} if name == "ScopeGuard" else {}
+            if name == "TrustTrail":
+                kwargs["vulnerability_database"] = vulnerability_database
             if name == "SceneSentry": kwargs["large_file_bytes"] = large_file_bytes
             result.findings.extend(analyzer(result.files, **kwargs))
             result.module_status[name] = "completed"
