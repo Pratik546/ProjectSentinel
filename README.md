@@ -26,6 +26,16 @@ streamlit run app.py
 
 Enter a project directory in the sidebar, choose modules, and click **Scan Project**. The default exclusions include Git metadata, virtual environments, dependency folders, build output, caches, and Unity generated folders. Limits are configurable.
 
+## 60-second judge demo
+
+1. Run `streamlit run app.py`.
+2. Keep the preloaded `examples/sample_unity_project` target or click **Use sample project**.
+3. Click **Scan Project**.
+4. Open **Findings & evidence** and inspect the duplicate asset, malformed manifest, repeated log error, redacted placeholder credential, and unverified requirement.
+5. Open **Export report** and download the reviewable HTML report.
+
+The product story is simple: choose a project, scan locally, review evidence, and export a report. Nothing is executed, modified, or uploaded.
+
 ## Demo
 
 ```bash
