@@ -22,7 +22,7 @@ Normal scans never execute code, install dependencies, modify the scanned projec
 
 ## Quick start
 
-Requires Python 3.12.
+Requires CPython 3.12. The repository pins 3.12.7 in `.python-version`; the Docker image uses that same Python release.
 
 ```bash
 python -m venv .venv
@@ -78,22 +78,31 @@ The dashboard keeps a real scan receipt: target folder, scan ID, recorded timest
 
 ## Docker
 
+Build and run the pinned image directly:
+
+```bash
+docker build --tag projectsentinel:local .
+docker run --rm --publish 8501:8501 \
+  --env PROJECTSENTINEL_TARGET=/workspace \
+  --volume "$PWD:/workspace:ro" \
+  projectsentinel:local
+```
+
+Open <http://localhost:8501>. The supplied Compose file is an equivalent convenience command:
+
 ```bash
 docker compose up --build
 ```
 
-Open <http://localhost:8501>. The supplied Compose file mounts the current directory read-only at `/workspace`. To inspect another project, change the mount source and set `PROJECTSENTINEL_TARGET` to its container path. Verify the container with `docker compose up --build`; a successful image build alone does not verify that the running container is healthy. The repository currently has no GitHub Actions workflow, so local test results should not be confused with a new CI run.
+It mounts the current directory read-only at `/workspace`. To inspect another project, change the mount source and set `PROJECTSENTINEL_TARGET` to its container path. A successful image build alone does not verify that the running container is healthy; wait for the Streamlit page or health check before using it. The repository currently has no GitHub Actions workflow, so local test results should not be confused with a new CI run.
 
 ## Tests
 
 ```bash
-python -m pytest -q
-python -m compileall -q projectsentinel app.py
-# Or run both checks together:
 bash scripts/run_tests.sh
 ```
 
-Tests use temporary fixtures and no internet. The JSON report has schema version `1.1`, a summary, module status, portable findings, verification plans, adapter status, imported crash-log receipts, skipped-file reasons, errors, and limitations. HTML is escaped and intentionally states it is not a security certification.
+This canonical check runs the pytest suite and the Python compile check. Tests use temporary fixtures and no internet. The JSON report has schema version `1.1`, a summary, module status, portable findings, verification plans, adapter status, imported crash-log receipts, skipped-file reasons, errors, and limitations. HTML is escaped and intentionally states it is not a security certification.
 
 ## Architecture
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "projectsentinel"
 version = "0.1.0"
 description = "Offline-first release-readiness auditor"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 dependencies = ["streamlit==1.39.0"]
 
 [tool.setuptools.packages.find]
