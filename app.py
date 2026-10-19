@@ -79,14 +79,14 @@ def _requirements_summary(raw: str) -> tuple[int, int, int, str | None]:
         return 0, 0, 0, str(exc)
 
 
-def _scan_fingerprint(target: str, modules: list[str], max_bytes: int, max_files: int, large_file_mb: int, ignores: set[str], requirements: str) -> str:
+def _scan_fingerprint(target: str, modules: list[str], max_file_bytes: int, max_files: int, large_file_bytes: int, ignores: set[str], requirements: str) -> str:
     """Identify the exact inputs represented by the visible scan receipt."""
     payload = {
         "target": str(Path(target).expanduser().resolve()),
         "modules": sorted(modules),
-        "max_bytes": int(max_bytes),
+        "max_file_bytes": int(max_file_bytes),
         "max_files": int(max_files),
-        "large_file_mb": int(large_file_mb),
+        "large_file_bytes": int(large_file_bytes),
         "ignores": sorted(ignores),
         "requirements": requirements,
     }
@@ -387,9 +387,25 @@ def main() -> None:
             format_func=lambda name: f"{name} — {MODULE_HELP[name]}",
         )
         with st.expander("Advanced scan limits", expanded=False):
-            max_bytes = st.number_input("Max file size (MB)", 1, 500, 20)
-            max_files = st.number_input("Max files", 100, 100000, 25000)
-            large_file_mb = st.number_input("Large-file threshold (MB)", 1, 2048, 25)
+            max_file_gb = st.number_input(
+                "Max file size (GB)",
+                min_value=0.01,
+                max_value=100.0,
+                value=1.0,
+                step=0.01,
+                format="%.2f",
+                help="Files up to this size are included, up to 100 GB. Hashing is streamed; large text/binary bodies are bounded in memory.",
+            )
+            max_files = st.number_input("Max files", 100, 100000, 100000)
+            large_file_gb = st.number_input(
+                "Large-file warning threshold (GB)",
+                min_value=0.001,
+                max_value=10.0,
+                value=0.025,
+                step=0.001,
+                format="%.3f",
+                help="0.025 GB is approximately 25 MB. This is a warning threshold, not a skip limit.",
+            )
             extra_ignores = st.text_input("Additional folders to skip", placeholder="GeneratedLocalRepo,temp")
         req = st.text_area("Release requirements evidence (optional)", placeholder='{"requirements": []}', height=100)
         run = st.button("Scan Project", type="primary", use_container_width=True)
@@ -433,13 +449,15 @@ def main() -> None:
             with st.spinner("Scanning safely — source code is never executed or modified..."):
                 requested_ignores = {item.strip() for item in extra_ignores.split(",") if item.strip()}
                 ignores = _effective_ignores(target_path, requested_ignores)
-                fingerprint = _scan_fingerprint(str(target_path), modules, int(max_bytes), int(max_files), int(large_file_mb), ignores, req)
+                max_file_bytes = int(float(max_file_gb) * 1024**3)
+                large_file_bytes = int(float(large_file_gb) * 1024**3)
+                fingerprint = _scan_fingerprint(str(target_path), modules, max_file_bytes, int(max_files), large_file_bytes, ignores, req)
                 st.session_state.result = analyze_project(
                     target_path,
-                    max_bytes=int(max_bytes) * 1024 * 1024,
+                    max_bytes=max_file_bytes,
                     max_files=int(max_files),
                     ignores=ignores,
-                    large_file_bytes=int(large_file_mb) * 1024 * 1024,
+                    large_file_bytes=large_file_bytes,
                     enabled=set(modules),
                     requirements=req or None,
                 )
@@ -449,9 +467,9 @@ def main() -> None:
                 st.session_state.scan_fingerprint = fingerprint
                 st.session_state.scan_config = {
                     "modules": list(modules),
-                    "max_file_size_mb": int(max_bytes),
+                    "max_file_size_gb": float(max_file_gb),
                     "max_files": int(max_files),
-                    "large_file_threshold_mb": int(large_file_mb),
+                    "large_file_threshold_gb": float(large_file_gb),
                     "additional_ignores": sorted(ignores),
                     "requirements_supplied": bool(req.strip()),
                 }
@@ -478,7 +496,15 @@ def main() -> None:
 
     scanned_target = st.session_state.get("scanned_target", str(result.root))
     current_ignores = _effective_ignores(target, {item.strip() for item in extra_ignores.split(",") if item.strip()})
-    current_fingerprint = _scan_fingerprint(target, modules, int(max_bytes), int(max_files), int(large_file_mb), current_ignores, req)
+    current_fingerprint = _scan_fingerprint(
+        target,
+        modules,
+        int(float(max_file_gb) * 1024**3),
+        int(max_files),
+        int(float(large_file_gb) * 1024**3),
+        current_ignores,
+        req,
+    )
     stale = bool(st.session_state.get("scan_fingerprint") and current_fingerprint != st.session_state.get("scan_fingerprint"))
     if stale:
         st.warning("The controls no longer match the displayed result. Click **Scan Project** to refresh this report; exports remain disabled until then.")

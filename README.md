@@ -33,6 +33,8 @@ streamlit run app.py
 
 Enter a project directory in the sidebar, choose modules, and click **Scan Project**. The default exclusions include Git metadata, virtual environments, dependency folders, build output, caches, and Unity generated folders. Limits are configurable.
 
+The sidebar uses gigabytes for the per-file limit. The default is `1.00 GB`, configurable up to `100 GB`, and the default file-count limit is `100,000`, so normal game/app binaries are not silently skipped by a small megabyte or file-count limit. Hashing is streamed, while very large text and binary bodies are bounded in memory; inventory, size, extension, and hash checks still cover those files. Scanning files near 100 GB depends on disk speed, available time, and the machine's file permissions, so lower the limit when you need a faster audit.
+
 ProjectSentinel does not require an API key or secret. If you want to preconfigure a local target, copy `.env.example` to `.env` and set `PROJECTSENTINEL_TARGET`; never commit real credentials.
 
 ## Quick live-project demo

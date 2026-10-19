@@ -1,5 +1,6 @@
 """Bounded filesystem scanner. It only reads files; it never executes them."""
 from datetime import datetime, timezone
+import hashlib
 from time import monotonic
 from pathlib import Path
 from .models import FileRecord, ScanResult
@@ -26,6 +27,40 @@ def _image_dimensions(data: bytes, suffix: str) -> tuple[int, int] | None:
 
 DEFAULT_IGNORES = {".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", "Library", "Temp", "obj", "Build", "build", "dist", ".idea"}
 RETAIN_BINARY = {".onnx", ".tflite", ".pt", ".pth", ".uasset", ".umap", ".blend", ".fbx", ".glb", ".gltf", ".mlmodel", ".safetensors", ".pkl", ".joblib"}
+MAX_TEXT_BYTES = 8 * 1024 * 1024
+MAX_BINARY_RETAIN_BYTES = 64 * 1024 * 1024
+
+def _scan_file(path: Path, size: int) -> tuple[str | None, bytes | None, dict[str, object], str]:
+    """Read bounded evidence and hash the complete file without loading it all."""
+    suffix = path.suffix.lower()
+    prefix_limit = 64 * 1024
+    with path.open("rb") as handle:
+        prefix = handle.read(prefix_limit)
+    metadata: dict[str, object] = {}
+    dimensions = _image_dimensions(prefix, suffix)
+    if dimensions:
+        metadata["width"], metadata["height"] = dimensions
+    is_binary = b"\0" in prefix
+    text: str | None = None
+    if not is_binary:
+        with path.open("rb") as handle:
+            payload = handle.read(MAX_TEXT_BYTES + 1)
+        text = payload[:MAX_TEXT_BYTES].decode("utf-8", errors="replace")
+        if len(payload) > MAX_TEXT_BYTES:
+            metadata["text_truncated"] = True
+            metadata["text_bytes_retained"] = MAX_TEXT_BYTES
+    data: bytes | None = None
+    if (is_binary or suffix in RETAIN_BINARY) and size <= MAX_BINARY_RETAIN_BYTES:
+        with path.open("rb") as handle:
+            data = handle.read(MAX_BINARY_RETAIN_BYTES + 1)
+        if len(data) > MAX_BINARY_RETAIN_BYTES:
+            data = data[:MAX_BINARY_RETAIN_BYTES]
+            metadata["binary_truncated"] = True
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return text, data, metadata, digest.hexdigest()
 
 def _detect_project_types(files: list[FileRecord]) -> list[str]:
     paths = {f.path for f in files}
@@ -64,20 +99,9 @@ def scan_project(root: str | Path, *, max_bytes: int = 2_000_000, max_files: int
             if path.stat().st_size > max_bytes:
                 result.skipped.append({"path": rel_path.as_posix(), "reason": "per-file size limit"})
                 continue
-            data = read_bounded(path, max_bytes)
             rel = safe_relative(path, base)
-            text = None
-            if b"\0" not in data:
-                text = data.decode("utf-8", errors="replace")
-            metadata = {}
-            dimensions = _image_dimensions(data, path.suffix)
-            if dimensions:
-                metadata["width"], metadata["height"] = dimensions
-            # Text is already retained for text analyzers. Binary payloads are
-            # retained only for bounded formats with structural adapters so a
-            # validator can inspect bytes without reopening or executing them.
-            raw = data if (text is None or path.suffix.lower() in RETAIN_BINARY) else None
-            result.files.append(FileRecord(rel, len(data), sha256_bytes(data), text, metadata, raw))
+            text, raw, metadata, digest = _scan_file(path, path.stat().st_size)
+            result.files.append(FileRecord(rel, path.stat().st_size, digest, text, metadata, raw))
         except (OSError, ValueError, UnicodeError) as exc:
             result.errors.append(f"{safe_relative(path, base)}: {exc}")
     return result
